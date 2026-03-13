@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container mt-5" style="max-width: 500px;">
+    <div class="card shadow-sm p-4">
+        <h3 class="mb-4">{{ form.instance.pk|yesno:"Edit Sale,Add Sale" }}</h3>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="d-flex justify-content-between mt-3">
+                <button type="submit" class="btn btn-success">Save</button>
+                <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
