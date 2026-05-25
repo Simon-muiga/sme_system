@@ -8,10 +8,15 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.db.models.functions import TruncMonth
 
-from .models import BusinessProfile, Sale, Expense
+from .models import BusinessProfile, Sale, Expense, Prediction
 from .forms import ExpenseForm, SaleForm, RegisterForm
+from .models import Category
+from .forms import CategoryForm
 
+import random
 
+from datetime import datetime
+import calendar
 
 # =========================
 # REGISTER
@@ -120,15 +125,28 @@ def dashboard(request):
         profit_sales.append(float(item["sales"]))
         profit_expenses.append(float(item["expenses"]))
 
+   
+
     # ===== Latest Records =====
     sales_latest = sales.order_by("-date")[:5]
     expenses_latest = expenses.order_by("-date")[:5]
 
     # ===== EXPENSE PIE CHART =====
-    expenses_by_category = expenses.values("category__name").annotate(total=Sum("amount"))
+    expenses_by_category = (
+        Expense.objects.filter(business=business)
+        .values("category__name")
+        .annotate(total=Sum("amount"))
+        .order_by("-total")
+    )
 
     expense_labels = [item["category__name"] or "No Category" for item in expenses_by_category]
     expense_data = [float(item["total"]) for item in expenses_by_category]
+
+    # Generate random colors dynamically
+    def random_color():
+        return "#" + ''.join([random.choice("0123456789ABCDEF") for _ in range(6)])
+    
+    expense_colors = [random_color() for _ in expense_labels]
 
     # ==== TOP EXPENSE CATEGORY =====
     top_category = None
@@ -145,6 +163,36 @@ def dashboard(request):
     sales_labels = [str(item["date"]) for item in sales_by_date]
     sales_data = [float(item["total"]) for item in sales_by_date]
 
+    # ===== SIMPLE SALES PREDICTION =====
+
+    monthly_sales_prediction = (
+        Sale.objects.filter(business=business)
+        .annotate(month=TruncMonth("date"))
+        .values("month")
+        .annotate(total_sales=Sum("amount"))
+        .order_by("month")
+    )
+
+    prediction_labels = []
+    prediction_data = []
+
+    sales_values = [float(item["total_sales"]) for item in monthly_sales_prediction]
+
+    if sales_values:
+        avg_sales = sum(sales_values) / len(sales_values)
+
+        today = datetime.today()
+        next_month = today.month + 1
+        year = today.year
+
+        if next_month > 12:
+            next_month = 1
+            year += 1
+
+            month_name = calendar.month_name[next_month]
+
+            prediction_labels.append(month_name)
+            prediction_data.append(round(avg_sales, 2))
     return render(
         request,
         "finance/dashboard.html",
@@ -157,6 +205,7 @@ def dashboard(request):
             "end_date": end_date or "",
             "expense_labels": json.dumps(expense_labels),
             "expense_data": json.dumps(expense_data),
+            "expense_colors": json.dumps(expense_colors),
             "sales_labels": json.dumps(sales_labels),
             "sales_data": json.dumps(sales_data),
             "profit_labels": json.dumps(profit_labels),
@@ -164,7 +213,9 @@ def dashboard(request):
             "profit_expenses": json.dumps(profit_expenses),
             "top_category": top_category,
             "top_amount": top_amount,
-            "profit_margin": profit_margin
+            "profit_margin": profit_margin,
+            "prediction_labels" : json.dumps(prediction_labels),
+            "prediction_data" : json.dumps(prediction_data)
 
         },
     )
@@ -354,11 +405,94 @@ def download_report(request):
     p.drawString(200, 800, "Financial Report")
 
     p.setFont("Helvetica", 12)
-    p.drawString(100, 750, f"Total Sales: Ksh {sales_total}")
-    p.drawString(100, 730, f"Total Expenses: Ksh {expenses_total}")
-    p.drawString(100, 710, f"Net Profit: Ksh {profit}")
+    p.drawString(100, 750, f"Total Sales: Ksh {sales_total:.2f}")
+    p.drawString(100, 730, f"Total Expenses: Ksh {expenses_total:.2f}")
+    p.drawString(100, 710, f"Net Profit: Ksh {profit:.2f}")
 
     p.showPage()
     p.save()
 
     return response
+
+@login_required
+def categories(request):
+
+    business = request.user.businessprofile
+
+    categories = Category.objects.filter(business=business)
+
+    context = {
+        "categories": categories
+    }
+
+    return render(request, "finance/categories.html", context)
+
+@login_required
+def add_category(request):
+
+    business = request.user.businessprofile
+
+    if request.method == "POST":
+
+        form = CategoryForm(request.POST)
+
+        if form.is_valid():
+
+            category = form.save(commit=False)
+            category.business = business
+            category.save()
+
+            return redirect("categories")
+        
+    else:
+        form = CategoryForm()
+        
+    context = {
+            "form": form
+        }
+   
+    return render(request, "finance/add_category.html", context)
+
+@login_required
+def edit_category(request, pk):
+
+    business = request.user.businessprofile
+
+    category = get_object_or_404(
+        Category,
+        pk=pk,
+        business=business
+    )
+
+    if request.method == "POST":
+        form = CategoryForm(request.POST, instance=category)
+
+        if form.is_valid():
+            form.save()
+            return redirect("categories")
+    else:
+        form = CategoryForm(instance=category)
+
+    context = {
+        "form": form,
+        "category": category,
+    }
+
+    return render(request, "finance/add_category.html", context)
+
+@login_required
+def delete_category(request, pk):
+
+    business = request.user.businessprofile 
+
+    category = get_object_or_404(
+        Category,
+        pk=pk,
+        business=business
+    )
+
+    category.delete()
+
+    return redirect("categories")
+
+

@@ -2,6 +2,7 @@ from django import forms
 from .models import Expense, Sale, Category
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from .models import Category
 
 class RegisterForm(UserCreationForm):
     class Meta:
@@ -27,6 +28,7 @@ class ExpenseForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Only show categories that are type EXPENSE
         self.fields['category'].queryset = Category.objects.filter(category_type='EXPENSE')
+        self.fields['category'].empty_label = "Select Category"
 
 
 class SaleForm(forms.ModelForm):
@@ -43,3 +45,9 @@ class SaleForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Only show categories that are type SALE
         self.fields['category'].queryset = Category.objects.filter(category_type='SALE')
+        self.fields['category'].empty_label = "Select Category"
+
+class CategoryForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = ['name', 'category_type']

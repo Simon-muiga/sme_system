@@ -18,13 +18,23 @@ class BusinessProfile(models.Model):
 # Category
 # -------------------
 class Category(models.Model):
+
     CATEGORY_TYPE = (
         ('SALE', 'Sale'),
         ('EXPENSE', 'Expense'),
     )
 
+    business = models.ForeignKey(
+        BusinessProfile,
+        on_delete=models.CASCADE
+    )
+
     name = models.CharField(max_length=100)
-    category_type = models.CharField(max_length=10, choices=CATEGORY_TYPE)
+
+    category_type = models.CharField(
+        max_length=10,
+        choices=CATEGORY_TYPE
+    )
 
     class Meta:
         verbose_name = "Category"
